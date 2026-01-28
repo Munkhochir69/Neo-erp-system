@@ -35,7 +35,7 @@ const SalesRepPerformance: React.FC<SalesRepPerformanceProps> = ({ state }) => {
   }, [selectedRep, selectedMonth, state.orders]);
 
   const totalRevenue = repOrders.reduce((a, b) => a + Number(b.amount), 0);
-  const totalProfit = repOrders.reduce((a, b) => a + Number(b.profit), 0);
+  const totalGrossProfit = repOrders.reduce((a, b) => a + Number(b.profit), 0);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('mn-MN').format(value) + CURRENCY;
@@ -50,7 +50,7 @@ const SalesRepPerformance: React.FC<SalesRepPerformanceProps> = ({ state }) => {
 
   const stats = [
     { label: 'Нийт орлого', value: formatCurrency(totalRevenue), sub: `${repOrders.length} Хүргэсэн` },
-    ...(isAdminOrManager ? [{ label: 'Нийт ашиг', value: formatCurrency(totalProfit), sub: `${((totalProfit/totalRevenue) * 100 || 0).toFixed(1)}% Марж` }] : []),
+    ...(isAdminOrManager ? [{ label: 'Бохир ашиг', value: formatCurrency(totalGrossProfit), sub: `${((totalGrossProfit/totalRevenue) * 100 || 0).toFixed(1)}% Марж` }] : []),
     { label: 'Дундаж захиалга', value: formatCurrency(totalRevenue / repOrders.length || 0), sub: 'Нэг үйлчлүүлэгчид' },
   ];
 

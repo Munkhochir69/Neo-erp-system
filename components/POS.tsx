@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { AppState, InventoryItem, UserRole } from '../types';
 import { CURRENCY } from '../constants';
@@ -14,24 +15,32 @@ interface POSProps {
     customerName: string;
     customerPhone: string;
     customerAddress: string;
+    district?: string;
+    customerLink?: string;
     repId?: string;
     items: { productId: string; name: string; quantity: number; price: number }[];
   }) => Promise<boolean>;
   onFinish: () => void;
 }
 
+const DISTRICTS = [
+  'Баянгол', 'Баянзүрх', 'Сонгинохайрхан', 'Сүхбаатар', 'Хан-Уул', 'Чингэлтэй', 'Налайх', 'Багануур', 'Багахангай'
+];
+
 const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
-  // Explicitly type the cart state using the CartItem interface
   const [cart, setCart] = useState<Map<string, CartItem>>(new Map());
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
-    address: '',
+    district: '',
+    detailedAddress: '',
+    link: '',
     repId: ''
   });
 
@@ -49,7 +58,6 @@ const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
 
   const addToCart = (item: InventoryItem) => {
     if (item.stock <= 0) return;
-    // Explicitly type newCart to ensure entry is not 'unknown'
     const newCart = new Map<string, CartItem>(cart);
     const entry = newCart.get(item.id);
     if (entry) {
@@ -88,24 +96,52 @@ const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
     });
   }, [state.inventory, searchQuery, selectedCategory]);
 
-  // Explicitly type entry in reduce to avoid 'unknown' errors
-  // Fixed: Added explicit generic type <number> to reduce and typed the items array to resolve 'unknown' type errors.
   const totalAmount: number = Array.from(cart.values()).reduce<number>((sum, entry: CartItem) => sum + entry.item.price * entry.quantity, 0);
-  // Fixed: Added explicit generic type <number> to reduce and typed the items array to resolve 'unknown' type errors.
   const totalItemsCount: number = Array.from(cart.values()).reduce<number>((sum, entry: CartItem) => sum + entry.quantity, 0);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (val.length <= 8) {
+      setFormData({ ...formData, phone: val });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (cart.size === 0 || !formData.name || !formData.phone || !formData.address || isSubmitting) return;
+    
+    if (isSubmitting) return;
+
+    // Explicit Validation
+    if (cart.size === 0) {
+      alert('Сагс хоосон байна. Бараа сонгоно уу.');
+      return;
+    }
+    if (!formData.name.trim()) {
+      alert('Үйлчлүүлэгчийн нэрийг оруулна уу.');
+      return;
+    }
+    if (formData.phone.length !== 8) {
+      alert('Утасны дугаар заавал 8 оронтой тоо байх ёстой.');
+      return;
+    }
+    if (!formData.district) {
+      alert('Дүүрэг сонгоно уу.');
+      return;
+    }
+    if (!formData.detailedAddress.trim()) {
+      alert('Дэлгэрэнгүй хаяг оруулна уу.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       const success = await onOrder({
         customerName: formData.name,
         customerPhone: formData.phone,
-        customerAddress: formData.address,
+        customerAddress: formData.detailedAddress,
+        district: formData.district,
+        customerLink: formData.link,
         repId: formData.repId || undefined,
-        // Explicitly type entry in map to fix 'unknown' errors
         items: Array.from(cart.values()).map((entry: CartItem) => ({
           productId: entry.item.id,
           name: entry.item.name,
@@ -116,13 +152,13 @@ const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
 
       if (success) {
         setCart(new Map());
-        setFormData({ name: '', phone: '', address: '', repId: '' });
+        setFormData({ name: '', phone: '', district: '', detailedAddress: '', link: '', repId: '' });
         setShowOrderModal(false);
         setShowSuccessPopup(true);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("POS Submission error:", err);
-      alert("Захиалга бүртгэхэд алдаа гарлаа. Та дахин оролдоно уу.");
+      alert("Захиалга бүртгэхэд алдаа гарлаа: " + (err.message || "Мэдээллийн сантай холбогдож чадсангүй."));
     } finally {
       setIsSubmitting(false);
     }
@@ -274,14 +310,14 @@ const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
             </div>
 
             <form onSubmit={handleSubmit} className="p-8 space-y-6">
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {isAdminOrManager && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Борлуулагч сонгох</label>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Борлуулагч сонгох</label>
                     <select 
                       value={formData.repId} 
                       onChange={e => setFormData({...formData, repId: e.target.value})}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
                     >
                       <option value="">Өөрийн нэр дээр бүртгэх</option>
                       {salesReps.map(rep => (
@@ -290,19 +326,48 @@ const POS: React.FC<POSProps> = ({ state, onOrder, onFinish }) => {
                     </select>
                   </div>
                 )}
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Үйлчлүүлэгчийн нэр</label>
-                  <input required type="text" placeholder="Д.Бат" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Үйлчлүүлэгчийн нэр</label>
+                  <input required type="text" placeholder="Д.Бат" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Утасны дугаар</label>
-                  <input required type="tel" placeholder="99112233" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Утасны дугаар (8 оронтой тоо)</label>
+                  <input 
+                    required 
+                    type="text" 
+                    placeholder="99112233" 
+                    value={formData.phone} 
+                    onChange={handlePhoneChange}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" 
+                  />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Хүргэлтийн хаяг</label>
-                  <textarea required rows={3} placeholder="БЗД, 14-р хороо..." value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all resize-none" />
+                
+                <div className="space-y-1 pt-2 border-t border-slate-100">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Дүүрэг</label>
+                  <select 
+                    required 
+                    value={formData.district} 
+                    onChange={e => setFormData({...formData, district: e.target.value})}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="">Сонгох...</option>
+                    {DISTRICTS.map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Дэлгэрэнгүй хаяг</label>
+                  <textarea required rows={2} placeholder="Хороо, гудамж, байр, тоот..." value={formData.detailedAddress} onChange={e => setFormData({...formData, detailedAddress: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all resize-none" />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Линк (Facebook гэх мэт)</label>
+                  <input type="text" placeholder="https://facebook.com/..." value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-500/10 transition-all" />
                 </div>
               </div>
+
               <div className="pt-4 flex space-x-3">
                 <button type="button" onClick={() => setShowOrderModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-4.5 rounded-2xl font-black text-sm transition-all">Буцах</button>
                 <button type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 hover:bg-blue-700 text-white py-4.5 rounded-2xl font-black text-sm shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all">

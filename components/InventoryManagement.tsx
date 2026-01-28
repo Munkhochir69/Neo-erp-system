@@ -6,7 +6,6 @@ import { CURRENCY } from '../constants';
 interface InventoryManagementProps {
   state: AppState;
   onUpdateItem: (item: InventoryItem) => Promise<void>;
-  onAddItem: (item: Omit<InventoryItem, 'id'>) => Promise<void>;
 }
 
 type SortConfig = {
@@ -14,17 +13,16 @@ type SortConfig = {
   direction: 'asc' | 'desc';
 } | null;
 
-const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpdateItem, onAddItem }) => {
+const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpdateItem }) => {
   const isAdmin = state.currentUser.role === UserRole.ADMIN;
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
   const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [isSaving, setIsSaving] = useState(false);
   const categoryRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [formData, setFormData] = useState<Omit<InventoryItem, 'id'>>({
+  const [formData, setFormData] = useState<Partial<InventoryItem>>({
     name: '',
     sku: '',
     category: '',
@@ -41,10 +39,10 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
   }, [state.inventory]);
 
   const categorySuggestions = useMemo(() => {
-    if (formData.category.length < 3) return [];
+    if (!formData.category || formData.category.length < 3) return [];
     return uniqueCategories.filter(c => 
-      c.toLowerCase().includes(formData.category.toLowerCase()) && 
-      c.toLowerCase() !== formData.category.toLowerCase()
+      c.toLowerCase().includes(formData.category!.toLowerCase()) && 
+      c.toLowerCase() !== formData.category!.toLowerCase()
     );
   }, [formData.category, uniqueCategories]);
 
@@ -122,8 +120,8 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
       category: item.category,
       stock: item.stock,
       reorderPoint: item.reorderPoint,
-      price: item.price,
-      originalCost: item.originalCost,
+      price: item.price || 0,
+      originalCost: item.originalCost || 0,
       imageUrl: item.imageUrl || ''
     });
   };
@@ -148,16 +146,14 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
   };
 
   const handleSave = async () => {
-    if (!isAdmin || isSaving) return;
+    if (!isAdmin || isSaving || !editingItem) return;
     setIsSaving(true);
     try {
-      if (editingItem) {
-        await onUpdateItem({ ...formData, id: editingItem.id });
-        setEditingItem(null);
-      } else {
-        await onAddItem(formData);
-        setShowAddModal(false);
-      }
+      await onUpdateItem({ 
+        ...editingItem,
+        ...formData 
+      } as InventoryItem);
+      setEditingItem(null);
       setFormData({ name: '', sku: '', category: '', stock: 0, reorderPoint: 5, price: 0, originalCost: 0, imageUrl: '' });
     } catch (err) {
       console.error(err);
@@ -170,20 +166,9 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Бараа материалын хяналт</h1>
-          <p className="text-slate-500">Борлуулалтын үнэ болон үлдэгдлийг хянах.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Бараа материалын үлдэгдэл</h1>
+          <p className="text-slate-500">Системд бүртгэлтэй бараануудын үлдэгдэл хянах.</p>
         </div>
-        {isAdmin && (
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Бүтээгдэхүүн нэмэх</span>
-          </button>
-        )}
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -282,7 +267,6 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
                     <p className="text-sm font-bold text-slate-800">{item.name}</p>
                     <p className="text-xs text-rose-500 font-medium">Хязгаар: {item.reorderPoint} ширхэг</p>
                   </div>
-                  {isAdmin && <button className="bg-rose-600 text-white px-3 py-1 rounded-lg text-xs font-bold hover:bg-rose-700">Захиалах</button>}
                 </div>
               ))}
               {state.inventory.filter(i => i.stock <= i.reorderPoint).length === 0 && (
@@ -293,12 +277,12 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
         </div>
       </div>
 
-      {isAdmin && (editingItem || showAddModal) && (
+      {isAdmin && editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-visible">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="text-xl font-black text-slate-900">{editingItem ? 'Бараа засах' : 'Шинэ бараа'}</h2>
-              <button onClick={() => { setEditingItem(null); setShowAddModal(false); }} className="text-slate-400 hover:text-slate-600">
+              <h2 className="text-xl font-black text-slate-900">Бараа засах</h2>
+              <button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -329,14 +313,6 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
                   onChange={handleImageUpload} 
                   className="hidden" 
                 />
-                {!formData.imageUrl && (
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs font-bold text-blue-600 hover:underline"
-                  >
-                    Файл сонгох
-                  </button>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -379,24 +355,26 @@ const InventoryManagement: React.FC<InventoryManagementProps> = ({ state, onUpda
                   )}
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Үлдэгдэл</label>
-                  <input type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <label className="text-xs font-bold text-slate-500 uppercase">Үлдэгдэл (Засах боломжгүй)</label>
+                  <div className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-500 font-bold">
+                    {formData.stock} ш
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Захиалах цэг</label>
                   <input type="number" value={formData.reorderPoint} onChange={e => setFormData({...formData, reorderPoint: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Өртөг үнэ</label>
+                  <input type="number" value={formData.originalCost} onChange={e => setFormData({...formData, originalCost: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+                </div>
+                <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-500 uppercase">Зарах үнэ</label>
                   <input type="number" value={formData.price} onChange={e => setFormData({...formData, price: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Өртөг</label>
-                  <input type="number" value={formData.originalCost} onChange={e => setFormData({...formData, originalCost: parseInt(e.target.value) || 0})} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
               </div>
               <div className="pt-4 flex space-x-3">
-                <button disabled={isSaving} onClick={() => { setEditingItem(null); setShowAddModal(false); }} className="flex-1 py-3 font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">Цуцлах</button>
+                <button disabled={isSaving} onClick={() => setEditingItem(null)} className="flex-1 py-3 font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">Цуцлах</button>
                 <button disabled={isSaving} onClick={handleSave} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 active:scale-95 transition-all flex items-center justify-center space-x-2">
                   {isSaving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                   <span>{isSaving ? 'Хадгалж байна...' : 'Хадгалах'}</span>

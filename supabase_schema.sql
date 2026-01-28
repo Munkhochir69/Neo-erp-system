@@ -3,11 +3,12 @@
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_user();
 DROP TABLE IF EXISTS public.orders;
+DROP TABLE IF EXISTS public.restock_history;
 DROP TABLE IF EXISTS public.reps;
 DROP TABLE IF EXISTS public.inventory;
 DROP TABLE IF EXISTS public.users;
 
--- 2. Хэрэглэгчдийн хүснэгт (id нь заавал auth.users-тэй холбогдох албагүй)
+-- 2. Хэрэглэгчдийн хүснэгт
 CREATE TABLE public.users (
   id UUID PRIMARY KEY,
   username TEXT,
@@ -48,6 +49,8 @@ CREATE TABLE public.orders (
   "customerName" TEXT,
   "customerPhone" TEXT,
   "customerAddress" TEXT,
+  "district" TEXT,
+  "customerLink" TEXT,
   date DATE DEFAULT CURRENT_DATE,
   timestamp TIME DEFAULT CURRENT_TIME,
   amount BIGINT DEFAULT 0,
@@ -62,18 +65,33 @@ CREATE TABLE public.orders (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 6. Аюулгүй байдлын тохиргоо (RLS)
+-- 6. Татан авалтын түүх хүснэгт
+CREATE TABLE public.restock_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id TEXT REFERENCES public.inventory(id),
+  item_name TEXT,
+  quantity INTEGER NOT NULL,
+  cost_yuan NUMERIC DEFAULT 0,
+  mnt_cost BIGINT DEFAULT 0,
+  exchange_rate INTEGER DEFAULT 0,
+  restock_date DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 7. Аюулгүй байдлын тохиргоо (RLS)
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reps ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.restock_history ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Allow all to authenticated" ON public.users FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all to authenticated" ON public.inventory FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all to authenticated" ON public.reps FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all to authenticated" ON public.orders FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow all to authenticated" ON public.restock_history FOR ALL TO authenticated USING (true);
 
--- 7. Trigger: Автомат профайл үүсгэх логик (Auth-аар орж ирсэн хэрэглэгчдэд)
+-- 8. Trigger: Автомат профайл үүсгэх логик
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
@@ -96,8 +114,3 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
--- 8. Жишээ өгөгдөл оруулах
-INSERT INTO public.inventory (id, name, sku, category, stock, "reorderPoint", price, "originalCost", "imageUrl") VALUES
-('itm-1', 'Premium Tea', 'TEA-001', 'Ундаа', 15, 5, 12000, 8000, 'https://images.unsplash.com/photo-1544787210-2213d84ad960?q=80&w=300&h=300&auto=format&fit=crop'),
-('itm-2', 'Organic Coffee', 'COF-002', 'Ундаа', 3, 5, 25000, 18000, 'https://images.unsplash.com/photo-1559056199-641a0ac8b55e?q=80&w=300&h=300&auto=format&fit=crop');

@@ -1,7 +1,8 @@
 
 export enum OrderStatus {
-  PENDING = 'Илгээх',
-  DELIVERED = 'Хүргэсэн',
+  PENDING = 'Хүргэлтэнд гаргах',
+  DELIVERED = 'Хүргэгдсэн',
+  PAID = 'Төлбөр баталгаажсан',
   CANCELLED = 'Цуцлагдсан'
 }
 
@@ -46,6 +47,8 @@ export interface Order {
   customerName: string;
   customerPhone: string;
   customerAddress: string;
+  district?: string;
+  customerLink?: string;
   date: string;
   timestamp: string;
   amount: number;
@@ -59,6 +62,18 @@ export interface Order {
   processedBy?: string;
 }
 
+export interface RestockLog {
+  id: string;
+  item_id: string;
+  item_name: string;
+  quantity: number;
+  cost_yuan: number;
+  mnt_cost: number;
+  exchange_rate: number;
+  restock_date: string;
+  created_at: string;
+}
+
 export interface MonthlyData {
   month: string;
   sales: number;
@@ -68,6 +83,7 @@ export interface MonthlyData {
 export interface AppState {
   inventory: InventoryItem[];
   orders: Order[];
+  restockLogs: RestockLog[];
   reps: SalesRep[];
   monthlyStats: MonthlyData[];
   drivers: string[];

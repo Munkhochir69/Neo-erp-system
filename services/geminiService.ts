@@ -2,21 +2,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AppState } from "../types";
 
-export const getAIInsights = async (state: AppState) => {
-  // Safety check for process.env in browser environments like Netlify
-  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : null;
-  
-  if (!apiKey) {
-    console.warn("AI Insights: API Key not found.");
-    return [
-      "Бараа материалын нөөцийн түвшинг тогтмол хянах шаардлагатай.",
-      "Хүлээгдэж буй захиалгуудын саатлыг шалгаж шийдвэрлэх.",
-      "Дараагийн улирлын борлуулалтын чиг хандлагад дүн шинжилгээ хийх."
-    ];
-  }
+// Follow @google/genai guidelines: Always use const ai = new GoogleGenAI({apiKey: process.env.API_KEY});
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  const ai = new GoogleGenAI({ apiKey });
-  
+export const getAIInsights = async (state: AppState) => {
   const inventorySummary = state.inventory.map(i => `${i.name} (Үлдэгдэл: ${i.stock}/${i.reorderPoint})`).join(', ');
   const recentOrders = state.orders.slice(-5).map(o => `${o.id}: $${o.amount} (${o.status})`).join(', ');
   
@@ -50,6 +39,7 @@ export const getAIInsights = async (state: AppState) => {
       }
     });
 
+    // Extracting text output from GenerateContentResponse using .text property
     const text = response.text;
     const result = JSON.parse(text || '{"insights": []}');
     return result.insights as string[];
